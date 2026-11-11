@@ -1,0 +1,15 @@
+.{
+    .name = .pony_island_ticket_checker,
+    .version = "0.0.1",
+    .fingerprint = 0x0b15dfa6796cc067,
+    .minimum_zig_version = "0.17.1",
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "build",
+        "src",
+        "LICENSE",
+        "LICENSES",
+        "README.md",
+    },
+}

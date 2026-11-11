@@ -1,0 +1,37 @@
+#!/bin/sh
+set -eu
+
+cd "$(dirname "$0")"
+
+if test "$#" -ne 1
+then
+  echo "Usage: $0 <linux|windows>" >&2
+  exit 2
+fi
+
+case "$1" in
+  linux)
+    target="x86_64-linux-musl"
+    output="out/bin/pony-island-ticket-checker"
+    extra=""
+    ;;
+  windows)
+    target="x86_64-windows-gnu"
+    output="out/bin/pony-island-ticket-checker.exe"
+    extra="-ladvapi32"
+    ;;
+  *)
+    echo "Invalid target: \"$1\"." >&2
+    echo "Usage: $0 <linux|windows>" >&2
+    exit 2
+    ;;
+esac
+
+mkdir -p "$(dirname "$output")"
+echo "Building $output..."
+zig build-exe \
+  -target "$target" \
+  -O ReleaseSafe \
+  -fstrip $extra \
+  -femit-bin="$output" \
+  src/main.zig

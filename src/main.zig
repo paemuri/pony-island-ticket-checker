@@ -1,0 +1,130 @@
+const std = @import("std");
+const builtin = @import("builtin");
+const Io = std.Io;
+
+const NAME = "pony-island-ticket-checker";
+const VERSION = "0.0.1";
+
+const HELP =
+    \\Check which Pony Island tickets are missing.
+    \\
+    \\Usage: pony-island-ticket-checker [OPTION]
+    \\
+    \\Options:
+    \\  -h, --help      Print this help and exit
+    \\  -v, --version   Print the version and exit
+    \\      --native    Read the native Linux prefs file
+    \\      --proton    Read the Proton user.reg file
+    \\
+    \\On Windows, the program always waits for Enter before exiting.
+;
+
+const Config = struct {
+    native: bool = false,
+    proton: bool = false,
+};
+
+pub fn main(init: std.process.Init) void {
+    run(init) catch |err| {
+        std.debug.print("{s}: {s}\n", .{ NAME, @errorName(err) });
+        exitWithPause(init, 1);
+    };
+}
+
+fn run(init: std.process.Init) !void {
+    const io = init.io;
+    const arena = init.arena.allocator();
+
+    var stdout_buffer: [4096]u8 = undefined;
+    var stdout_file_writer: Io.File.Writer = .init(.stdout(), io, &stdout_buffer);
+    const stdout = &stdout_file_writer.interface;
+
+    const args = try init.minimal.args.toSlice(arena);
+    _ = parseArgs(args, init, stdout);
+
+    // TODO Implement it!
+    try stdout.print("0 missing tickets.\n", .{});
+    try stdout.flush();
+
+    exitWithPause(init, 0);
+}
+
+fn parseArgs(
+    args: []const [:0]const u8,
+    init: std.process.Init,
+    stdout: *Io.Writer,
+) Config {
+    var config = Config{};
+    var i: usize = 1;
+
+    while (i < args.len) : (i += 1) {
+        const arg = args[i];
+
+        if (std.mem.eql(u8, arg, "-h") or
+            std.mem.eql(u8, arg, "--help") or
+            std.mem.eql(u8, arg, "help"))
+        {
+            printHelp(init, stdout);
+        }
+
+        if (std.mem.eql(u8, arg, "-v") or
+            std.mem.eql(u8, arg, "--version") or
+            std.mem.eql(u8, arg, "version"))
+        {
+            printVersion(init, stdout);
+        }
+
+        if (std.mem.eql(u8, arg, "--native")) {
+            config.native = true;
+        } else if (std.mem.eql(u8, arg, "--proton")) {
+            config.proton = true;
+        } else {
+            usageError(init, "unknown argument: {s}", .{arg});
+        }
+    }
+
+    if (config.native and config.proton) {
+        usageError(init, "--native and --proton cannot be used together", .{});
+    }
+
+    if ((config.native or config.proton) and builtin.os.tag == .windows) {
+        usageError(init, "unknown argument: {s}", .{arg});
+    }
+
+    return config;
+}
+
+fn printHelp(init: std.process.Init, stdout: *Io.Writer) noreturn {
+    stdout.writeAll(HELP) catch {};
+    stdout.writeAll("\n") catch {};
+    stdout.flush() catch {};
+    exitWithPause(init, 0);
+}
+
+fn printVersion(init: std.process.Init, stdout: *Io.Writer) noreturn {
+    stdout.print("{s} {s}\n", .{ NAME, VERSION }) catch {};
+    stdout.flush() catch {};
+    exitWithPause(init, 0);
+}
+
+fn usageError(
+    init: std.process.Init,
+    comptime fmt: []const u8,
+    args: anytype,
+) noreturn {
+    std.debug.print(
+        "{s}: " ++ fmt ++ "\nRun `" ++ NAME ++ " --help` for usage.\n",
+        .{NAME} ++ args,
+    );
+    exitWithPause(init, 2);
+}
+
+fn exitWithPause(init: std.process.Init, code: u8) noreturn {
+    if (builtin.os.tag == .windows) {
+        std.debug.print("\nPress Enter to exit...\n", .{});
+        var stdin_buffer: [256]u8 = undefined;
+        var stdin_reader = Io.File.stdin().reader(init.io, &stdin_buffer);
+        _ = stdin_reader.interface.takeDelimiter('\n') catch {};
+    }
+    std.process.exit(code);
+}
