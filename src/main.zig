@@ -2,10 +2,13 @@ const std = @import("std");
 const builtin = @import("builtin");
 const Io = std.Io;
 
-const NAME = "pony-island-ticket-checker";
-const VERSION = "0.0.1";
+const tickets = @import("tickets.zig");
+const report = @import("report.zig");
 
-const HELP =
+const name = "pony-island-ticket-checker";
+const version = "0.0.1";
+
+const help =
     \\Check which Pony Island tickets are missing.
     \\
     \\Usage: pony-island-ticket-checker [OPTION]
@@ -26,7 +29,7 @@ const Config = struct {
 
 pub fn main(init: std.process.Init) void {
     run(init) catch |err| {
-        std.debug.print("{s}: {s}\n", .{ NAME, @errorName(err) });
+        std.debug.print("{s}: {s}\n", .{ name, @errorName(err) });
         exitWithPause(init, 1);
     };
 }
@@ -40,10 +43,46 @@ fn run(init: std.process.Init) !void {
     const stdout = &stdout_file_writer.interface;
 
     const args = try init.minimal.args.toSlice(arena);
-    _ = parseArgs(args, init, stdout);
+    const config = parseArgs(args, init, stdout);
 
-    // TODO Implement it!
-    try stdout.print("0 missing tickets.\n", .{});
+    if (builtin.os.tag == .windows) {
+        // TODO Implement it!
+        try stdout.print("0 missing tickets.\n", .{});
+        try stdout.flush();
+        exitWithPause(init, 0);
+    }
+
+    if (config.proton) {
+        // TODO Implement it!
+        try stdout.print("0 missing tickets.\n", .{});
+        try stdout.flush();
+        exitWithPause(init, 1);
+    }
+
+    const prefs_path = tickets.path(arena, init.environ_map) catch |err| {
+        std.debug.print(
+            "{s}: failed to locate native prefs: {s}\n",
+            .{ name, @errorName(err) },
+        );
+        exitWithPause(init, 1);
+    };
+
+    const set = tickets.read(io, arena, prefs_path) catch |err| switch (err) {
+        error.FileNotFound => {
+            std.debug.print("{s}: native prefs not found: {s}\n", .{ name, prefs_path });
+            exitWithPause(init, 1);
+        },
+        else => {
+            std.debug.print(
+                "{s}: failed to read native prefs ({s}): {s}\n",
+                .{ name, prefs_path, @errorName(err) },
+            );
+            exitWithPause(init, 1);
+        },
+    };
+
+    const result = tickets.missing(set);
+    try report.write(stdout, .native_linux, result.ids[0..result.len]);
     try stdout.flush();
 
     exitWithPause(init, 0);
@@ -97,14 +136,14 @@ fn parseArgs(
 }
 
 fn printHelp(init: std.process.Init, stdout: *Io.Writer) noreturn {
-    stdout.writeAll(HELP) catch {};
+    stdout.writeAll(help) catch {};
     stdout.writeAll("\n") catch {};
     stdout.flush() catch {};
     exitWithPause(init, 0);
 }
 
 fn printVersion(init: std.process.Init, stdout: *Io.Writer) noreturn {
-    stdout.print("{s} {s}\n", .{ NAME, VERSION }) catch {};
+    stdout.print("{s} {s}\n", .{ name, version }) catch {};
     stdout.flush() catch {};
     exitWithPause(init, 0);
 }
@@ -115,8 +154,8 @@ fn usageError(
     args: anytype,
 ) noreturn {
     std.debug.print(
-        "{s}: " ++ fmt ++ "\nRun `" ++ NAME ++ " --help` for usage.\n",
-        .{NAME} ++ args,
+        "{s}: " ++ fmt ++ "\nRun `" ++ name ++ " --help` for usage.\n",
+        .{name} ++ args,
     );
     exitWithPause(init, 2);
 }
