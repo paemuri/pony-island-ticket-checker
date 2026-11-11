@@ -75,8 +75,14 @@ fn parseArgs(
         }
 
         if (std.mem.eql(u8, arg, "--native")) {
+            if (builtin.os.tag == .windows) {
+                usageError(init, "unknown argument: {s}", .{arg});
+            }
             config.native = true;
         } else if (std.mem.eql(u8, arg, "--proton")) {
+            if (builtin.os.tag == .windows) {
+                usageError(init, "unknown argument: {s}", .{arg});
+            }
             config.proton = true;
         } else {
             usageError(init, "unknown argument: {s}", .{arg});
@@ -85,10 +91,6 @@ fn parseArgs(
 
     if (config.native and config.proton) {
         usageError(init, "--native and --proton cannot be used together", .{});
-    }
-
-    if ((config.native or config.proton) and builtin.os.tag == .windows) {
-        usageError(init, "unknown argument: {s}", .{arg});
     }
 
     return config;
