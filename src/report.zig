@@ -25,7 +25,7 @@ pub fn write(writer: *std.Io.Writer, source: Source, set: tickets.Set) !void {
         );
     }
 
-    try writer.print("\n\nSource: {s}\n", .{sourceLabel(source)});
+    try writer.print("\n\nSource: {s}.\n", .{sourceLabel(source)});
     try writer.flush();
 }
 
@@ -33,6 +33,6 @@ fn sourceLabel(source: Source) []const u8 {
     return switch (source) {
         .linux_native => "Linux native prefs",
         .linux_proton => "Linux Proton user.reg",
-        .windows => "Windows",
+        .windows => "Windows registry",
     };
 }
