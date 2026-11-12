@@ -12,12 +12,12 @@ fi
 case "$1" in
   linux)
     target="x86_64-linux-musl"
-    output="out/bin/pony-island-ticket-checker"
+    output="zig-out/bin/pony-island-ticket-checker"
     extra=""
     ;;
   windows)
     target="x86_64-windows-gnu"
-    output="out/bin/pony-island-ticket-checker.exe"
+    output="zig-out/bin/pony-island-ticket-checker.exe"
     extra="-ladvapi32"
     ;;
   *)
