@@ -1,4 +1,5 @@
 const std = @import("std");
+const tickets = @import("tickets.zig");
 
 pub const Source = enum {
     linux_native,
@@ -6,12 +7,14 @@ pub const Source = enum {
     windows_registry,
 };
 
-pub fn write(writer: *std.Io.Writer, source: Source, missing: []const u8) !void {
+pub fn write(writer: *std.Io.Writer, source: Source, set: tickets.Set) !void {
+    const missing = tickets.missing(set);
+
     try writer.print("{d} missing ticket(s).", .{missing.len});
 
     if (missing.len != 0) {
         try writer.writeAll(" Ticket ID(s):\n");
-        for (missing) |id| {
+        for (missing.ids[0..missing.len]) |id| {
             try writer.print("- {d}\n", .{id});
         }
         try writer.writeAll(
@@ -23,6 +26,7 @@ pub fn write(writer: *std.Io.Writer, source: Source, missing: []const u8) !void 
     }
 
     try writer.print("\n\nSource: {s}\n", .{sourceLabel(source)});
+    try writer.flush();
 }
 
 fn sourceLabel(source: Source) []const u8 {

@@ -20,11 +20,22 @@ const help =
     \\  -v, --version         Print the version and exit
     \\      --linux-native    Read the Linux native prefs file
     \\      --linux-proton    Read the Linux Proton user.reg file
+    \\
+    \\If both --linux-native and --linux-proton are given, the last one wins.
 ;
 
+const Source = enum {
+    linux_native,
+    linux_proton,
+};
+
+const Mode = enum {
+    auto,
+    forced,
+};
+
 const Config = struct {
-    linux_native: bool = false,
-    linux_proton: bool = false,
+    source: ?Source = null,
 };
 
 pub fn main(init: std.process.Init) void {
@@ -52,23 +63,25 @@ fn run(init: std.process.Init) !void {
         exitWithPause(init, 0);
     }
 
-    if (config.linux_proton) {
-        const set = linux_proton.read(io, arena, init.environ_map) catch |err| switch (err) {
-            error.LinuxProtonSaveNotFound => {
-                std.debug.print("{s}: Linux Proton user.reg not found\n", .{name});
-                exitWithPause(init, 1);
-            },
-            else => {
-                std.debug.print(
-                    "{s}: failed to read Linux Proton user.reg: {s}\n",
-                    .{ name, @errorName(err) },
-                );
-                exitWithPause(init, 1);
-            },
-        };
-
-        try writeReport(init, stdout, .linux_proton, set);
+    if (config.source) |source| {
+        switch (source) {
+            .linux_native => try runLinuxNative(init, stdout, .forced),
+            .linux_proton => try runLinuxProton(init, stdout, .forced),
+        }
+    } else {
+        try runLinuxAuto(init, stdout);
     }
+}
+
+/// runLinuxAuto tries to read the Linux native data, and if it's missing, it
+/// falls back to the Proton flow.
+fn runLinuxAuto(init: std.process.Init, stdout: *Io.Writer) !void {
+    try runLinuxNative(init, stdout, .auto);
+    try runLinuxProton(init, stdout, .auto);
+}
+
+fn runLinuxNative(init: std.process.Init, stdout: *Io.Writer, mode: Mode) !void {
+    const arena = init.arena.allocator();
 
     const prefs_path = linux_native.path(arena, init.environ_map) catch |err| {
         std.debug.print(
@@ -78,10 +91,13 @@ fn run(init: std.process.Init) !void {
         exitWithPause(init, 1);
     };
 
-    const set = linux_native.read(io, arena, prefs_path) catch |err| switch (err) {
-        error.FileNotFound => {
-            std.debug.print("{s}: Linux native prefs not found: {s}\n", .{ name, prefs_path });
-            exitWithPause(init, 1);
+    const set = linux_native.read(init.io, arena, prefs_path) catch |err| switch (err) {
+        error.FileNotFound => switch (mode) {
+            .auto => return,
+            .forced => {
+                std.debug.print("{s}: Linux native prefs not found: {s}\n", .{ name, prefs_path });
+                exitWithPause(init, 1);
+            },
         },
         else => {
             std.debug.print(
@@ -92,18 +108,34 @@ fn run(init: std.process.Init) !void {
         },
     };
 
-    try writeReport(init, stdout, .linux_native, set);
+    try report.write(stdout, .linux_native, set);
+    exitWithPause(init, 0);
 }
 
-fn writeReport(
-    init: std.process.Init,
-    stdout: *Io.Writer,
-    source: report.Source,
-    set: tickets.Set,
-) !void {
-    const result = tickets.missing(set);
-    try report.write(stdout, source, result.ids[0..result.len]);
-    try stdout.flush();
+fn runLinuxProton(init: std.process.Init, stdout: *Io.Writer, mode: Mode) !void {
+    const arena = init.arena.allocator();
+
+    const set = linux_proton.read(init.io, arena, init.environ_map) catch |err| switch (err) {
+        error.LinuxProtonSaveNotFound => switch (mode) {
+            .auto => {
+                std.debug.print("{s}: no Linux save found\n", .{name});
+                exitWithPause(init, 1);
+            },
+            .forced => {
+                std.debug.print("{s}: Linux Proton user.reg not found\n", .{name});
+                exitWithPause(init, 1);
+            },
+        },
+        else => {
+            std.debug.print(
+                "{s}: failed to read Linux Proton user.reg: {s}\n",
+                .{ name, @errorName(err) },
+            );
+            exitWithPause(init, 1);
+        },
+    };
+
+    try report.write(stdout, .linux_proton, set);
     exitWithPause(init, 0);
 }
 
@@ -136,19 +168,15 @@ fn parseArgs(
             if (builtin.os.tag == .windows) {
                 usageError(init, "unknown argument: {s}", .{arg});
             }
-            config.linux_native = true;
+            config.source = .linux_native;
         } else if (std.mem.eql(u8, arg, "--linux-proton")) {
             if (builtin.os.tag == .windows) {
                 usageError(init, "unknown argument: {s}", .{arg});
             }
-            config.linux_proton = true;
+            config.source = .linux_proton;
         } else {
             usageError(init, "unknown argument: {s}", .{arg});
         }
-    }
-
-    if (config.linux_native and config.linux_proton) {
-        usageError(init, "--linux-native and --linux-proton cannot be used together", .{});
     }
 
     return config;
