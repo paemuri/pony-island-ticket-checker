@@ -3,7 +3,7 @@ const builtin = @import("builtin");
 const Io = std.Io;
 
 pub const name = "pony-island-ticket-checker";
-pub const version = "0.0.1";
+pub const version = "1.0.0";
 
 pub fn exitWithPause(init: std.process.Init, code: u8) noreturn {
     if (builtin.os.tag == .windows) {

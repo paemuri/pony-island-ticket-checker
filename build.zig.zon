@@ -1,6 +1,6 @@
 .{
     .name = .pony_island_ticket_checker,
-    .version = "0.0.1",
+    .version = "1.0.0",
     .fingerprint = 0x0b15dfa6796cc067,
     .minimum_zig_version = "0.17.1",
     .paths = .{
