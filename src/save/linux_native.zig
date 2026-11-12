@@ -83,3 +83,39 @@ fn attr(attrs: []const u8, comptime name: []const u8) ?[]const u8 {
     const end = std.mem.indexOfScalarPos(u8, attrs, start, '"') orelse return null;
     return attrs[start..end];
 }
+
+test "parses ticket ids from native prefs" {
+    const contents =
+        \\<unity_prefs version_major="1" version_minor="1">
+        \\  <pref name="tickets0" type="int">0</pref>
+        \\  <pref name="tickets1" type="int">11</pref>
+        \\  <pref name="tickets2_h939244832" type="int">20</pref>
+        \\  <pref name="ticketsnumberof" type="int">3</pref>
+        \\  <pref name="Screenmanager Resolution Width" type="int">1920</pref>
+        \\</unity_prefs>
+    ;
+
+    const set = parse(contents);
+
+    try std.testing.expect(set.isSet(0));
+    try std.testing.expect(set.isSet(11));
+    try std.testing.expect(set.isSet(20));
+    try std.testing.expectEqual(@as(usize, 3), set.count());
+}
+
+test "ignores unused and unknown ticket ids" {
+    const contents =
+        \\<unity_prefs version_major="1" version_minor="1">
+        \\  <pref name="tickets0" type="int">6</pref>
+        \\  <pref name="tickets1" type="int">25</pref>
+        \\  <pref name="tickets2" type="int">5</pref>
+        \\</unity_prefs>
+    ;
+
+    const set = parse(contents);
+
+    try std.testing.expect(!set.isSet(6));
+    try std.testing.expect(!tickets.isValid(25));
+    try std.testing.expect(set.isSet(5));
+    try std.testing.expectEqual(@as(usize, 1), set.count());
+}

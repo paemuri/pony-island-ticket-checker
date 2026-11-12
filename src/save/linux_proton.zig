@@ -93,3 +93,60 @@ pub fn parse(contents: []const u8) tickets.Set {
 
     return set;
 }
+
+test "parses ticket ids from Proton user.reg" {
+    const contents =
+        \\WINE REGISTRY Version 2
+        \\
+        \\[Software\Daniel Mullins Games\Pony Island] 1760000000
+        \\"tickets0_h939244834"=dword:00000000
+        \\"tickets1_h939244835"=dword:0000000b
+        \\"tickets2_h939244832"=dword:00000014
+        \\"ticketsnumberof_h3252926712"=dword:00000003
+        \\
+        \\[Software\Something Else] 1760000001
+        \\"tickets3_h1"=dword:00000005
+    ;
+
+    const set = parse(contents);
+
+    try std.testing.expect(set.isSet(0));
+    try std.testing.expect(set.isSet(11));
+    try std.testing.expect(set.isSet(20));
+    try std.testing.expect(!set.isSet(5));
+    try std.testing.expectEqual(@as(usize, 3), set.count());
+}
+
+test "parses PonyIsland section" {
+    const contents =
+        \\WINE REGISTRY Version 2
+        \\
+        \\[Software\Daniel Mullins Games\PonyIsland] 1760000000
+        \\"tickets0_h1"=dword:00000014
+        \\
+        \\[Software\Something Else] 1760000001
+        \\"tickets1_h2"=dword:00000005
+    ;
+
+    const set = parse(contents);
+
+    try std.testing.expect(set.isSet(20));
+    try std.testing.expect(!set.isSet(5));
+    try std.testing.expectEqual(@as(usize, 1), set.count());
+}
+
+test "ignores unused and unknown ticket ids" {
+    const contents =
+        \\WINE REGISTRY Version 2
+        \\
+        \\[Software\Daniel Mullins Games\Pony Island] 1760000000
+        \\"tickets0_h1"=dword:00000006
+        \\"tickets1_h2"=dword:00000019
+    ;
+
+    const set = parse(contents);
+
+    try std.testing.expect(!set.isSet(6));
+    try std.testing.expect(!tickets.isValid(25));
+    try std.testing.expectEqual(@as(usize, 0), set.count());
+}

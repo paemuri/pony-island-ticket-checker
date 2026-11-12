@@ -106,3 +106,14 @@ fn usageError(
     );
     cli.exitWithPause(init, 2);
 }
+
+test {
+    _ = @import("tickets.zig");
+    _ = @import("report.zig");
+    _ = @import("save/linux_native.zig");
+    _ = @import("save/linux_proton.zig");
+    _ = if (builtin.os.tag == .linux)
+        @import("platform/linux.zig")
+    else
+        @import("platform/windows.zig");
+}

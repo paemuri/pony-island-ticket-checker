@@ -99,3 +99,9 @@ fn runProton(init: std.process.Init, stdout: *Io.Writer, mode: Mode) !void {
     try report.write(stdout, .linux_proton, set);
     cli.exitWithPause(init, 0);
 }
+
+test "parseSource recognizes Linux flags" {
+    try std.testing.expectEqual(Source.linux_native, parseSource("--linux-native").?);
+    try std.testing.expectEqual(Source.linux_proton, parseSource("--linux-proton").?);
+    try std.testing.expect(parseSource("--native") == null);
+}
