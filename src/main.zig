@@ -20,8 +20,6 @@ const help =
     \\  -v, --version         Print the version and exit
     \\      --linux-native    Read the Linux native prefs file
     \\      --linux-proton    Read the Linux Proton user.reg file
-    \\
-    \\On Windows, the program always waits for Enter before exiting.
 ;
 
 const Config = struct {
