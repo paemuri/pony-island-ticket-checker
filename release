@@ -1,0 +1,100 @@
+#!/bin/sh
+set -eu
+
+umask 022
+
+cd "$(dirname "$0")"
+
+if test "$#" -ne 0
+then
+  echo "Usage: $0" >&2
+  exit 2
+fi
+
+# src/cli.zig is what the binary reports, so it is the source of truth.
+version="$(sed -n 's/^pub const version = "\([^"]*\)";$/\1/p' src/cli.zig)"
+
+if test -z "$version"
+then
+  echo "$0: could not read version from src/cli.zig" >&2
+  exit 1
+fi
+
+case "$version" in
+  .*|*.|*..*|*[!0-9.]*)
+    echo "$0: invalid version in src/cli.zig: \"$version\"" >&2
+    exit 1
+    ;;
+esac
+
+if ! grep -q "^[[:space:]]*\.version = \"$version\",$" build.zig.zon
+then
+  echo "$0: build.zig.zon does not declare version \"$version\"" >&2
+  exit 1
+fi
+
+# Archive timestamps come from the commit, not the build, so the same commit
+# always produces the same archives.
+mtime="${SOURCE_DATE_EPOCH:-}"
+if test -z "$mtime"
+then
+  mtime="$(git log -1 --format=%ct 2>/dev/null || true)"
+fi
+if test -z "$mtime"
+then
+  mtime=0
+fi
+
+name="pony-island-ticket-checker"
+linux_name="$name-$version-linux-x86_64"
+windows_name="$name-$version-windows-x86_64"
+linux_tar="$linux_name.tar.gz"
+windows_zip="$windows_name.zip"
+
+./build linux
+./build windows
+
+rm -rf "releases/$linux_name" "releases/$windows_name"
+rm -f "releases/$linux_tar" "releases/$windows_zip" "releases/SHA256SUMS"
+
+for dir in "releases/$linux_name" "releases/$windows_name"
+do
+  mkdir -p "$dir"
+  cp README.md LICENSE "$dir/"
+  cp -R LICENSES "$dir/"
+done
+
+cp "zig-out/bin/$name" "releases/$linux_name/"
+cp "zig-out/bin/$name.exe" "releases/$windows_name/"
+
+# tar and zip take timestamps from the files themselves, so normalize them too.
+for dir in "releases/$linux_name" "releases/$windows_name"
+do
+  find "$dir" -exec touch -d "@$mtime" {} +
+done
+
+if ! "releases/$linux_name/$name" --version | grep -qx "$name $version"
+then
+  echo "$0: staged Linux binary does not report version \"$version\"" >&2
+  exit 1
+fi
+
+cd releases/
+
+tar -czf "$linux_tar" \
+  --owner=0 --group=0 --numeric-owner --sort=name --mtime="@$mtime" \
+  "$linux_name"
+# zip -qrX lists files in a non-deterministic way. This is a workaround for
+# that.
+find "$windows_name" -type d -printf '%p/\n' -o -type f -printf '%p\n' |
+  LC_ALL=C sort |
+  zip -qX "$windows_zip" -@
+
+tar -tzf "$linux_tar" >/dev/null
+unzip -tq "$windows_zip" >/dev/null
+
+sha256sum "$linux_tar" "$windows_zip" > SHA256SUMS
+
+cat SHA256SUMS
+
+cd ..
