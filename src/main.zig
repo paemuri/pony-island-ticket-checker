@@ -4,6 +4,8 @@ const Io = std.Io;
 
 const tickets = @import("tickets.zig");
 const report = @import("report.zig");
+const linux_native = @import("save/linux_native.zig");
+const linux_proton = @import("save/linux_proton.zig");
 
 const name = "pony-island-ticket-checker";
 const version = "0.0.1";
@@ -14,17 +16,17 @@ const help =
     \\Usage: pony-island-ticket-checker [OPTION]
     \\
     \\Options:
-    \\  -h, --help      Print this help and exit
-    \\  -v, --version   Print the version and exit
-    \\      --native    Read the native Linux prefs file
-    \\      --proton    Read the Proton user.reg file
+    \\  -h, --help            Print this help and exit
+    \\  -v, --version         Print the version and exit
+    \\      --linux-native    Read the Linux native prefs file
+    \\      --linux-proton    Read the Linux Proton user.reg file
     \\
     \\On Windows, the program always waits for Enter before exiting.
 ;
 
 const Config = struct {
-    native: bool = false,
-    proton: bool = false,
+    linux_native: bool = false,
+    linux_proton: bool = false,
 };
 
 pub fn main(init: std.process.Init) void {
@@ -52,39 +54,58 @@ fn run(init: std.process.Init) !void {
         exitWithPause(init, 0);
     }
 
-    if (config.proton) {
-        // TODO Implement it!
-        try stdout.print("0 missing tickets.\n", .{});
-        try stdout.flush();
-        exitWithPause(init, 1);
+    if (config.linux_proton) {
+        const set = linux_proton.read(io, arena, init.environ_map) catch |err| switch (err) {
+            error.LinuxProtonSaveNotFound => {
+                std.debug.print("{s}: Linux Proton user.reg not found\n", .{name});
+                exitWithPause(init, 1);
+            },
+            else => {
+                std.debug.print(
+                    "{s}: failed to read Linux Proton user.reg: {s}\n",
+                    .{ name, @errorName(err) },
+                );
+                exitWithPause(init, 1);
+            },
+        };
+
+        try writeReport(init, stdout, .linux_proton, set);
     }
 
-    const prefs_path = tickets.path(arena, init.environ_map) catch |err| {
+    const prefs_path = linux_native.path(arena, init.environ_map) catch |err| {
         std.debug.print(
-            "{s}: failed to locate native prefs: {s}\n",
+            "{s}: failed to locate Linux native prefs: {s}\n",
             .{ name, @errorName(err) },
         );
         exitWithPause(init, 1);
     };
 
-    const set = tickets.read(io, arena, prefs_path) catch |err| switch (err) {
+    const set = linux_native.read(io, arena, prefs_path) catch |err| switch (err) {
         error.FileNotFound => {
-            std.debug.print("{s}: native prefs not found: {s}\n", .{ name, prefs_path });
+            std.debug.print("{s}: Linux native prefs not found: {s}\n", .{ name, prefs_path });
             exitWithPause(init, 1);
         },
         else => {
             std.debug.print(
-                "{s}: failed to read native prefs ({s}): {s}\n",
+                "{s}: failed to read Linux native prefs ({s}): {s}\n",
                 .{ name, prefs_path, @errorName(err) },
             );
             exitWithPause(init, 1);
         },
     };
 
-    const result = tickets.missing(set);
-    try report.write(stdout, .native_linux, result.ids[0..result.len]);
-    try stdout.flush();
+    try writeReport(init, stdout, .linux_native, set);
+}
 
+fn writeReport(
+    init: std.process.Init,
+    stdout: *Io.Writer,
+    source: report.Source,
+    set: tickets.Set,
+) !void {
+    const result = tickets.missing(set);
+    try report.write(stdout, source, result.ids[0..result.len]);
+    try stdout.flush();
     exitWithPause(init, 0);
 }
 
@@ -113,23 +134,23 @@ fn parseArgs(
             printVersion(init, stdout);
         }
 
-        if (std.mem.eql(u8, arg, "--native")) {
+        if (std.mem.eql(u8, arg, "--linux-native")) {
             if (builtin.os.tag == .windows) {
                 usageError(init, "unknown argument: {s}", .{arg});
             }
-            config.native = true;
-        } else if (std.mem.eql(u8, arg, "--proton")) {
+            config.linux_native = true;
+        } else if (std.mem.eql(u8, arg, "--linux-proton")) {
             if (builtin.os.tag == .windows) {
                 usageError(init, "unknown argument: {s}", .{arg});
             }
-            config.proton = true;
+            config.linux_proton = true;
         } else {
             usageError(init, "unknown argument: {s}", .{arg});
         }
     }
 
-    if (config.native and config.proton) {
-        usageError(init, "--native and --proton cannot be used together", .{});
+    if (config.linux_native and config.linux_proton) {
+        usageError(init, "--linux-native and --linux-proton cannot be used together", .{});
     }
 
     return config;

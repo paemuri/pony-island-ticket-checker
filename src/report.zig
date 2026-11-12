@@ -1,8 +1,8 @@
 const std = @import("std");
 
 pub const Source = enum {
-    native_linux,
-    proton,
+    linux_native,
+    linux_proton,
     windows_registry,
 };
 
@@ -27,8 +27,8 @@ pub fn write(writer: *std.Io.Writer, source: Source, missing: []const u8) !void 
 
 fn sourceLabel(source: Source) []const u8 {
     return switch (source) {
-        .native_linux => "native Linux prefs",
-        .proton => "Proton user.reg",
+        .linux_native => "Linux native prefs",
+        .linux_proton => "Linux Proton user.reg",
         .windows_registry => "Windows registry",
     };
 }

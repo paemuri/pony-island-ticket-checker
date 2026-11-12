@@ -1,0 +1,95 @@
+const std = @import("std");
+const tickets = @import("../tickets.zig");
+
+const max_file_size = 4 * 1024 * 1024;
+
+pub fn read(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    env: *const std.process.Environ.Map,
+) !tickets.Set {
+    const home = env.get("HOME") orelse return error.HomeNotSet;
+
+    if (try readFrom(io, allocator, home, ".steam/steam/steamapps/compatdata/405640/pfx/user.reg")) |set| {
+        return set;
+    }
+
+    if (env.get("XDG_DATA_HOME")) |data_home| {
+        if (data_home.len != 0) {
+            if (try readFrom(io, allocator, data_home, "Steam/steamapps/compatdata/405640/pfx/user.reg")) |set| {
+                return set;
+            }
+        }
+    }
+
+    if (try readFrom(io, allocator, home, ".local/share/Steam/steamapps/compatdata/405640/pfx/user.reg")) |set| {
+        return set;
+    }
+
+    if (try readFrom(
+        io,
+        allocator,
+        home,
+        ".var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/compatdata/405640/pfx/user.reg",
+    )) |set| {
+        return set;
+    }
+
+    return error.LinuxProtonSaveNotFound;
+}
+
+fn readFrom(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    base: []const u8,
+    suffix: []const u8,
+) !?tickets.Set {
+    const file_path = try std.fs.path.join(allocator, &.{ base, suffix });
+    const contents = std.Io.Dir.cwd().readFileAlloc(
+        io,
+        file_path,
+        allocator,
+        .limited(max_file_size),
+    ) catch |err| switch (err) {
+        error.FileNotFound => return null,
+        else => return err,
+    };
+    return parse(contents);
+}
+
+pub fn parse(contents: []const u8) tickets.Set {
+    var set = tickets.Set.empty;
+    var in_section = false;
+    var lines = std.mem.splitScalar(u8, contents, '\n');
+
+    // Wine's text registry. Tickets are stored as
+    // /"tickets\d_h\d{9}"=dword:\d{8}/.
+    while (lines.next()) |line| {
+        const trimmed = std.mem.trim(u8, line, " \t\r");
+        if (trimmed.len == 0) continue;
+
+        if (trimmed[0] == '[') {
+            in_section = std.mem.indexOf(u8, trimmed, "Daniel Mullins Games") != null and
+                std.mem.indexOf(u8, trimmed, "Pony") != null;
+            continue;
+        }
+
+        if (!in_section) continue;
+        if (trimmed[0] != '"') continue;
+
+        const quote_end = std.mem.indexOfScalarPos(u8, trimmed, 1, '"') orelse continue;
+        const key = trimmed[1..quote_end];
+        if (!tickets.isTicketKey(key)) continue;
+
+        const value_start = std.mem.indexOfPos(u8, trimmed, quote_end + 1, "=dword:") orelse continue;
+        const hex_start = value_start + "=dword:".len;
+        if (hex_start >= trimmed.len) continue;
+
+        const id = std.fmt.parseInt(u8, trimmed[hex_start..], 16) catch continue;
+        if (!tickets.isValid(id)) continue;
+
+        set.set(id);
+    }
+
+    return set;
+}
