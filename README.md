@@ -4,8 +4,31 @@
 
 ## About
 
-The idea here is to automate the steps on my guide to list the missing tickets
-in the game [Pony Island][1]. Check the guide [here][2].
+This is a simple CLI that checks your [Pony Island][1] (the game) data to see
+the tickets (in-game concept) you are missing. The idea here is to automate the
+steps on [this guide][2].
+
+This program works for both Linux (native and Proton) and Windows. macOS and UWP
+aren't supported due to lack of interest of mine. Let me know if you want
+something like that.
+
+All data is read-only. This software does not change any saved data.
+
+### Building
+
+Currently, `zig build` doesn't work. You need to run either `./build linux` or
+`./build windows`. Binaries will be in `zig-out/bin/`.
+
+### Testing
+
+Run `zig test src/main.zig`.
+
+### Usage
+
+After building, just run `./zig-out/bin/pony-island-ticket-checker`. Add
+`--help` for more info.
+
+Windows version should also just work with a double-click on the .exe file.
 
 ## Source code
 
