@@ -4,7 +4,7 @@ const tickets = @import("tickets.zig");
 pub const Source = enum {
     linux_native,
     linux_proton,
-    windows_registry,
+    windows,
 };
 
 pub fn write(writer: *std.Io.Writer, source: Source, set: tickets.Set) !void {
@@ -33,6 +33,6 @@ fn sourceLabel(source: Source) []const u8 {
     return switch (source) {
         .linux_native => "Linux native prefs",
         .linux_proton => "Linux Proton user.reg",
-        .windows_registry => "Windows registry",
+        .windows => "Windows",
     };
 }

@@ -6,6 +6,10 @@ const tickets = @import("tickets.zig");
 const report = @import("report.zig");
 const linux_native = @import("save/linux_native.zig");
 const linux_proton = @import("save/linux_proton.zig");
+const windows = if (builtin.os.tag == .windows)
+    @import("save/windows.zig")
+else
+    struct {};
 
 const name = "pony-island-ticket-checker";
 const version = "0.0.1";
@@ -57,9 +61,21 @@ fn run(init: std.process.Init) !void {
     const config = parseArgs(args, init, stdout);
 
     if (builtin.os.tag == .windows) {
-        // TODO Implement it!
-        try stdout.print("0 missing tickets.\n", .{});
-        try stdout.flush();
+        const set = windows.read() catch |err| switch (err) {
+            error.WindowsKeyNotFound => {
+                std.debug.print("{s}: Windows registry key not found\n", .{name});
+                exitWithPause(init, 1);
+            },
+            else => {
+                std.debug.print(
+                    "{s}: failed to read Windows registry: {s}\n",
+                    .{ name, @errorName(err) },
+                );
+                exitWithPause(init, 1);
+            },
+        };
+
+        try report.write(stdout, .windows, set);
         exitWithPause(init, 0);
     }
 
