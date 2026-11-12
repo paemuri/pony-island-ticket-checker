@@ -63,7 +63,7 @@ pub fn parse(contents: []const u8) tickets.Set {
     var lines = std.mem.splitScalar(u8, contents, '\n');
 
     // Wine's text registry. Tickets are stored as
-    // /"tickets\d_h\d{9}"=dword:\d{8}/.
+    // /"tickets\d+_h\d+"=dword:[0-9a-f]{8}/.
     while (lines.next()) |line| {
         const trimmed = std.mem.trim(u8, line, " \t\r");
         if (trimmed.len == 0) continue;
